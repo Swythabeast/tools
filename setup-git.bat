@@ -95,10 +95,12 @@ if not defined REPO_SSH_URL (
 set "SSH_USER="
 set "SSH_HOST="
 set "URL_PORT="
-for /f "tokens=1,2,3 delims=|" %%A in ('powershell -NoProfile -Command "$u=$env:REPO_SSH_URL; if ($u -match '^ssh://([^@]+)@([^:/]+)(?::([0-9]+))?/(.+)$') { Write-Output ($Matches[1] + '|' + $Matches[2] + '|' + $Matches[3]) } elseif ($u -match '^([^@]+)@([^:]+):(.+)$') { Write-Output ($Matches[1] + '|' + $Matches[2] + '|') }"') do (
+set "REPO_NAME="
+for /f "tokens=1,2,3,4 delims=|" %%A in ('powershell -NoProfile -Command "$u=$env:REPO_SSH_URL; if ($u -match '^ssh://([^@]+)@([^:/]+)(?::([0-9]+))?/(.+)$') { $n = $Matches[4]; if ($n -match '([^/]+?)(?:\.git)?$') { $rn = $Matches[1] } else { $rn = 'repo' }; Write-Output ($Matches[1] + '|' + $Matches[2] + '|' + $Matches[3] + '|' + $rn) } elseif ($u -match '^([^@]+)@([^:]+):(.+)$') { $n = $Matches[3]; if ($n -match '([^/]+?)(?:\.git)?$') { $rn = $Matches[1] } else { $rn = 'repo' }; Write-Output ($Matches[1] + '|' + $Matches[2] + '||' + $rn) }"') do (
     set "SSH_USER=%%A"
     set "SSH_HOST=%%B"
     set "URL_PORT=%%C"
+    set "REPO_NAME=%%D"
 )
 
 if not defined SSH_USER (
@@ -141,9 +143,11 @@ if "!USE_EXISTING_REPO!"=="y" (
         exit /b 1
     )
 ) else (
+    set "DEFAULT_DIR=repo"
+    if defined REPO_NAME set "DEFAULT_DIR=!REPO_NAME!"
     set "REPO_DIR="
-    set /p "REPO_DIR=Dossier de destination pour le clone (défaut: ./repo) : "
-    if not defined REPO_DIR set "REPO_DIR=repo"
+    set /p "REPO_DIR=Dossier de destination pour le clone (défaut: ./!DEFAULT_DIR!) : "
+    if not defined REPO_DIR set "REPO_DIR=!DEFAULT_DIR!"
     if "!REPO_DIR:~0,2!"=="~\" set "REPO_DIR=%USERPROFILE%\!REPO_DIR:~2!"
     if "!REPO_DIR:~0,2!"=="~/" set "REPO_DIR=%USERPROFILE%\!REPO_DIR:~2!"
 )
@@ -191,6 +195,10 @@ exit /b 0
 
 :configure_ssh_config
 call :step "Configuration de ~/.ssh/config"
+if not defined SSH_HOST (
+    call :die "SSH_HOST est vide, impossible de configurer ~/.ssh/config."
+    exit /b 1
+)
 set "SSH_CONFIG=%USERPROFILE%\.ssh\config"
 if not exist "%USERPROFILE%\.ssh" mkdir "%USERPROFILE%\.ssh"
 set "KEY_FWD=!SSH_KEY_PATH:\=/!"
@@ -335,14 +343,44 @@ if "!USE_EXISTING_REPO!"=="y" (
     )
 ) else (
     call :step "Clone du dépôt"
-    if exist "!REPO_DIR!" (
-        call :warn "Le dossier '!REPO_DIR!' existe déjà."
+    if exist "!REPO_DIR!\.git" (
+        call :warn "Le dossier '!REPO_DIR!' est déjà un dépôt Git existant."
         set "USE_EXISTING="
-        set /p "USE_EXISTING=Continuer dans ce dossier ? (o/N) : "
+        set /p "USE_EXISTING=Configurer le remote dans ce dossier existant ? (o/N) : "
         if /i "!USE_EXISTING!" neq "o" (
             call :die "Arrêt. Choisissez un autre dossier."
             exit /b 1
         )
+        set "CURRENT_REMOTE="
+        for /f "delims=" %%R in ('git -C "!REPO_DIR!" remote get-url origin 2^>nul') do set "CURRENT_REMOTE=%%R"
+        if defined CURRENT_REMOTE (
+            git -C "!REPO_DIR!" remote set-url origin "!REPO_SSH_URL!"
+        ) else (
+            git -C "!REPO_DIR!" remote add origin "!REPO_SSH_URL!"
+        )
+        call :success "Remote configuré dans !REPO_DIR!"
+    ) else if exist "!REPO_DIR!" (
+        call :warn "Le dossier '!REPO_DIR!' existe déjà."
+        if defined REPO_NAME (
+            echo Voulez-vous cloner dans un sous-dossier '!REPO_DIR!\!REPO_NAME!' ?
+            set "USE_SUB="
+            set /p "USE_SUB=[O/n] : "
+            if /i "!USE_SUB!" neq "n" set "REPO_DIR=!REPO_DIR!\!REPO_NAME!"
+        )
+        if exist "!REPO_DIR!" (
+            set "USE_EXISTING="
+            set /p "USE_EXISTING=Continuer dans ce dossier ? (o/N) : "
+            if /i "!USE_EXISTING!" neq "o" (
+                call :die "Arrêt. Choisissez un autre dossier."
+                exit /b 1
+            )
+        )
+        git clone "!REPO_SSH_URL!" "!REPO_DIR!"
+        if errorlevel 1 (
+            call :die "Échec du git clone."
+            exit /b 1
+        )
+        call :success "Dépôt cloné dans !REPO_DIR!"
     ) else (
         git clone "!REPO_SSH_URL!" "!REPO_DIR!"
         if errorlevel 1 (
