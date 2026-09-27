@@ -4,9 +4,12 @@
 
 ---
 
-## `setup-git.sh`
+## `setup-git.sh` & `setup-git.bat`
 
-Configure en une commande une clé SSH, `~/.ssh/config`, le clone d'un dépôt Gitea et la signature de commits.
+Configure en une commande une clé SSH, la configuration SSH (`~/.ssh/config`), le clone d'un dépôt Gitea et la signature de commits.
+
+* `setup-git.sh` pour **Linux / macOS**
+* `setup-git.bat` pour **Windows**
 
 ---
 
@@ -15,30 +18,54 @@ Configure en une commande une clé SSH, `~/.ssh/config`, le clone d'un dépôt G
 | Outil | Requis |
 |-------|--------|
 | `git` | toujours |
-| `ssh-keygen` | sauf si l'étape SSH est sautée |
+| `ssh-keygen` | sauf si l'étape SSH est sautée (inclus avec Git for Windows ou OpenSSH) |
 | `gpg` | uniquement si signature GPG choisie |
 
 ---
 
 ### Téléchargement rapide
 
-**curl**
+**Linux / macOS (`setup-git.sh`)**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kazuryy/tools/develop/setup-git.sh -o setup-git.sh
+curl -fsSL https://raw.githubusercontent.com/Swythabeast/tools/develop/setup-git.sh -o setup-git.sh
+```
+ou
+```bash
+wget -q https://raw.githubusercontent.com/Swythabeast/tools/develop/setup-git.sh
 ```
 
-**wget**
-```bash
-wget -q https://raw.githubusercontent.com/Kazuryy/tools/develop/setup-git.sh
+**Windows (`setup-git.bat`)**
+```cmd
+curl.exe -fsSL https://raw.githubusercontent.com/Swythabeast/tools/develop/setup-git.bat -o setup-git.bat
+```
+ou en PowerShell :
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Swythabeast/tools/develop/setup-git.bat" -OutFile "setup-git.bat"
 ```
 
 ---
 
 ### Usage
 
+**Linux / macOS :**
 ```bash
 bash setup-git.sh
 ```
+
+**Windows :**
+Double-cliquez sur `setup-git.bat` ou lancez-le dans un terminal (`cmd` ou PowerShell) :
+```cmd
+setup-git.bat
+```
+
+> **Notice Windows :**
+> - Les clés et configurations SSH sont stockées dans `%USERPROFILE%\.ssh` (ex: `C:\Users\<Nom>\.ssh`).
+> - Le script utilise la configuration dans `config` (`IdentityFile`), l'agent SSH n'est donc pas obligatoire pour se connecter.
+> - Si vous souhaitez activer le service Windows OpenSSH Agent :
+>   ```powershell
+>   Set-Service ssh-agent -StartupType Manual; Start-Service ssh-agent
+>   ```
+>   *(à exécuter dans un terminal PowerShell ouvert en tant qu'Administrateur)*.
 
 ---
 
