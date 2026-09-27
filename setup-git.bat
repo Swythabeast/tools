@@ -96,11 +96,10 @@ set "SSH_USER="
 set "SSH_HOST="
 set "URL_PORT="
 set "REPO_NAME="
-for /f "tokens=1,2,3,4 delims=|" %%A in ('powershell -NoProfile -Command "$u=$env:REPO_SSH_URL; if ($u -match '^ssh://([^@]+)@([^:/]+)(?::([0-9]+))?/(.+)$') { $n = $Matches[4]; if ($n -match '([^/]+?)(?:\.git)?$') { $rn = $Matches[1] } else { $rn = 'repo' }; Write-Output ($Matches[1] + '|' + $Matches[2] + '|' + $Matches[3] + '|' + $rn) } elseif ($u -match '^([^@]+)@([^:]+):(.+)$') { $n = $Matches[3]; if ($n -match '([^/]+?)(?:\.git)?$') { $rn = $Matches[1] } else { $rn = 'repo' }; Write-Output ($Matches[1] + '|' + $Matches[2] + '||' + $rn) }"') do (
-    set "SSH_USER=%%A"
-    set "SSH_HOST=%%B"
-    set "URL_PORT=%%C"
-    set "REPO_NAME=%%D"
+powershell -NoProfile -Command "$m=[regex]::Match($env:REPO_SSH_URL, '(?:ssh://)?([^@]+)@([^:/]+)(?::(\d+))?[:/](?:.+/)?([^/]+?)(?:\.git)?$'); if ($m.Success) { [System.IO.File]::WriteAllLines(\"$env:TEMP\_parsed_url.txt\", [string[]]@(\"SSH_USER=$($m.Groups[1].Value)\", \"SSH_HOST=$($m.Groups[2].Value)\", \"URL_PORT=$($m.Groups[3].Value)\", \"REPO_NAME=$($m.Groups[4].Value)\")) }"
+if exist "%TEMP%\_parsed_url.txt" (
+    for /f "usebackq delims=" %%L in ("%TEMP%\_parsed_url.txt") do set "%%L"
+    del "%TEMP%\_parsed_url.txt" >nul 2>&1
 )
 
 if not defined SSH_USER (
@@ -125,7 +124,11 @@ if defined URL_PORT (
 ) else (
     set "EXISTING_PORT="
     if exist "%USERPROFILE%\.ssh\config" (
-        for /f "tokens=2" %%p in ('powershell -NoProfile -Command "$content = Get-Content \"$env:USERPROFILE\.ssh\config\" -ErrorAction SilentlyContinue; $found = $false; foreach ($l in $content) { if ($l -match '^\s*Host\s+$([regex]::Escape($env:SSH_HOST))\b') { $found = $true; continue }; if ($found -and $l -match '^\s*Host\s+') { break }; if ($found -and $l -match '^\s*Port\s+(\d+)') { Write-Output $Matches[1]; break } }"') do set "EXISTING_PORT=%%p"
+        powershell -NoProfile -Command "$content=Get-Content \"$env:USERPROFILE\.ssh\config\" -ErrorAction SilentlyContinue; $found=$false; foreach($l in $content){ if($l -match '^\s*Host\s+$([regex]::Escape($env:SSH_HOST))\b'){$found=$true;continue}; if($found -and $l -match '^\s*Host\s+'){break}; if($found -and $l -match '^\s*Port\s+(\d+)'){$m=$Matches[1]; [System.IO.File]::WriteAllText(\"$env:TEMP\_gport.txt\", $m); break} }"
+        if exist "%TEMP%\_gport.txt" (
+            set /p EXISTING_PORT=<"%TEMP%\_gport.txt"
+            del "%TEMP%\_gport.txt" >nul 2>&1
+        )
     )
     if not defined EXISTING_PORT set "EXISTING_PORT=22"
     set "GITEA_SSH_PORT=!EXISTING_PORT!"
@@ -181,7 +184,7 @@ exit /b 0
 
 :configure_ssh_agent
 call :step "Configuration de l'agent SSH"
-net start ssh-agent >nul 2>&1
+cmd /c "net start ssh-agent >nul 2>&1"
 ssh-add "!SSH_KEY_PATH!" >nul 2>&1
 if errorlevel 1 (
     call :warn "L'agent SSH n'a pas pu charger la clé (service ssh-agent arrêté ou désactivé)."
