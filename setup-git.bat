@@ -158,7 +158,7 @@ if "!USE_EXISTING_REPO!"=="y" (
 call :info "Nom    : !GIT_NAME!"
 call :info "Email  : !GIT_EMAIL!"
 call :info "Gitea  : !SSH_USER!@!SSH_HOST!:!GITEA_SSH_PORT!"
-call :info "Dépôt  : !REPO_SSH_URL! -> !REPO_DIR!"
+call :info "Dépôt  : !REPO_SSH_URL! -^> !REPO_DIR!"
 exit /b 0
 
 :generate_ssh_key
@@ -339,13 +339,15 @@ if "!USE_EXISTING_REPO!"=="y" (
     if defined CURRENT_REMOTE (
         call :info "Remote actuel : !CURRENT_REMOTE!"
         git -C "!REPO_DIR!" remote set-url origin "!REPO_SSH_URL!"
-        call :success "Remote mis à jour -> !REPO_SSH_URL!"
+        call :success "Remote mis à jour -^> !REPO_SSH_URL!"
     ) else (
         git -C "!REPO_DIR!" remote add origin "!REPO_SSH_URL!"
-        call :success "Remote ajouté -> !REPO_SSH_URL!"
+        call :success "Remote ajouté -^> !REPO_SSH_URL!"
     )
 ) else (
     call :step "Clone du dépôt"
+    if exist "!REPO_DIR!" if not exist "!REPO_DIR!\" del /f /q "!REPO_DIR!" >nul 2>&1
+
     if exist "!REPO_DIR!\.git" (
         call :warn "Le dossier '!REPO_DIR!' est déjà un dépôt Git existant."
         set "USE_EXISTING="
@@ -362,15 +364,16 @@ if "!USE_EXISTING_REPO!"=="y" (
             git -C "!REPO_DIR!" remote add origin "!REPO_SSH_URL!"
         )
         call :success "Remote configuré dans !REPO_DIR!"
-    ) else if exist "!REPO_DIR!" (
+    ) else if exist "!REPO_DIR!\" (
         call :warn "Le dossier '!REPO_DIR!' existe déjà."
-        if defined REPO_NAME (
+        for %%F in ("!REPO_DIR!") do set "CURR_DIR_NAME=%%~nxF"
+        if /i "!CURR_DIR_NAME!" neq "!REPO_NAME!" (
             echo Voulez-vous cloner dans un sous-dossier '!REPO_DIR!\!REPO_NAME!' ?
             set "USE_SUB="
             set /p "USE_SUB=[O/n] : "
             if /i "!USE_SUB!" neq "n" set "REPO_DIR=!REPO_DIR!\!REPO_NAME!"
         )
-        if exist "!REPO_DIR!" (
+        if exist "!REPO_DIR!\" (
             set "USE_EXISTING="
             set /p "USE_EXISTING=Continuer dans ce dossier ? (o/N) : "
             if /i "!USE_EXISTING!" neq "o" (
